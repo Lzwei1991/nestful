@@ -14,5 +14,5 @@ public @interface GET {
     /**
      * request routing
      */
-    String value();
+    String value() default "";
 }

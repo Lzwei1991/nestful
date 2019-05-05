@@ -14,5 +14,5 @@ public @interface PUT {
     /**
      * request routing
      */
-    String value();
+    String value() default "";
 }

@@ -4,15 +4,12 @@ import java.lang.annotation.*;
 
 /**
  * @author Lzw
- * @date 2019/4/30
+ * @date 2019/5/5
  * @since JDK 1.8
  */
-@Target({ElementType.METHOD})
+@Target({ElementType.PARAMETER})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface DELETE {
-    /**
-     * request routing
-     */
-    String value() default "";
+public @interface PathParam {
+    String value();
 }
