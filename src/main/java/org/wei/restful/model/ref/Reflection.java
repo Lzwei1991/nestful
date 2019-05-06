@@ -1,6 +1,5 @@
 package org.wei.restful.model.ref;
 
-import io.netty.util.internal.StringUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.reflections.Reflections;
 import org.wei.restful.annotations.*;
@@ -40,55 +39,12 @@ public class Reflection {
             String uri = path.value();
             Method[] methods = clazz.getMethods();
             for (Method m : methods) {
-                POST post = m.getAnnotation(POST.class);
-                if (post != null) {
-                    concat(uri, post.value()).ifPresent(postUrl -> RestfulMethods.addPostMethod(postUrl, m));
-                }
-
-                GET get = m.getAnnotation(GET.class);
-                if (get != null) {
-                    concat(uri, get.value()).ifPresent(getUrl -> RestfulMethods.addGetMethod(getUrl, m));
-                }
-
-                PUT put = m.getAnnotation(PUT.class);
-                if (put != null) {
-                    concat(uri, put.value()).ifPresent(putUrl -> RestfulMethods.addPutMethod(putUrl, m));
-                }
-
-                DELETE delete = m.getAnnotation(DELETE.class);
-                if (delete != null) {
-                    concat(uri, delete.value()).ifPresent(deleteUrl -> RestfulMethods.addDeleteMethod(deleteUrl, m));
-                }
+                Optional.ofNullable(m.getAnnotation(POST.class)).ifPresent(post -> RestfulMethods.addPostMethod(uri, m));
+                Optional.ofNullable(m.getAnnotation(PUT.class)).ifPresent(put -> RestfulMethods.addPutMethod(uri, m));
+                Optional.ofNullable(m.getAnnotation(GET.class)).ifPresent(get -> RestfulMethods.addGetMethod(uri, m));
+                Optional.ofNullable(m.getAnnotation(DELETE.class)).ifPresent(delete -> RestfulMethods.addDeleteMethod(uri, m));
             }
         }
-    }
-
-    /**
-     * @param path
-     * @param methodPath
-     * @return
-     */
-    private static Optional<String> concat(String path, String methodPath) {
-        if (path != null) {
-            String url;
-            if (StringUtil.isNullOrEmpty(methodPath)) {
-                if (methodPath.startsWith("/")) {
-                    url = path + methodPath;
-                } else if (path.endsWith("/")) {
-                    url = path + methodPath;
-                } else {
-                    url = path + "/" + methodPath;
-                }
-            } else {
-                url = path;
-            }
-            url = url.replace("//", "/");
-            if (!url.equals("/") && url.endsWith("/")) {
-                url = url.substring(0, url.lastIndexOf("/"));
-            }
-            return Optional.of(url);
-        }
-        return Optional.empty();
     }
 
 }

@@ -11,8 +11,4 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface GET {
-    /**
-     * request routing
-     */
-    String value() default "";
 }

@@ -1,10 +1,13 @@
 package org.wei.restful.model.ref;
 
+import com.google.code.regexp.Matcher;
+import com.google.code.regexp.Pattern;
+
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
+import static java.util.regex.Pattern.quote;
 
 /**
  * @author Lzw
@@ -140,8 +143,8 @@ public class RestfulMethods {
         Matcher matcher = p.matcher(url);
         while (matcher.find()) {
             String val = matcher.group();
-            url = url.replaceAll(Pattern.quote(val), "(?" + val.replace("{", "<").replace("}", ">") + ".+?" + ")");
+            url = url.replaceAll(quote(val), "(?" + val.replace("{", "<").replace("}", ">") + ".+?" + ")");
         }
-        return Pattern.compile(url);
+        return Pattern.compile("^" + url + "$");
     }
 }

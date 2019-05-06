@@ -31,6 +31,11 @@
             <artifactId>guice</artifactId>
             <version>4.2.2</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.tony19</groupId>
+            <artifactId>named-regexp</artifactId>
+            <version>0.2.5</version>
+        </dependency>
 
         <dependency>
             <groupId>ch.qos.logback</groupId>

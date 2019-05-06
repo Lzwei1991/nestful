@@ -1,7 +1,10 @@
 package org.wei.restful.handler;
 
+import com.google.code.regexp.Matcher;
+import com.google.code.regexp.Pattern;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.google.inject.name.Names;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -9,18 +12,14 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
-import org.wei.restful.annotations.PathParam;
 import org.wei.restful.model.ref.Reflection;
 import org.wei.restful.model.ref.RestfulMethods;
 import org.wei.restful.service.Service;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * @author Lzw
@@ -41,7 +40,6 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
 
         try {
             FullHttpRequest req = (FullHttpRequest) msg;
-
             String uri = req.uri();
             HttpMethod httpMethod = req.method();
             Map.Entry<Pattern, Method> entry;
@@ -54,28 +52,30 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
             } else if (HttpMethod.DELETE.equals(httpMethod)) {
                 entry = RestfulMethods.DELETE(uri);
             } else {
-                sendError(ctx, HttpResponseStatus.OK);
+                status(ctx, HttpResponseStatus.OK);
                 return;
             }
 
             if (entry == null) {
-                sendError(ctx, HttpResponseStatus.NOT_FOUND);
+                status(ctx, HttpResponseStatus.NOT_FOUND);
             } else {
                 Method method = entry.getValue();
-                Class<?> clazz = method.getDeclaringClass();
-                Constructor<?> constructor = clazz.getConstructor(ChannelHandlerContext.class, FullHttpRequest.class);
-                Service service = (Service) constructor.newInstance(ctx, req);
-
-                Injector injector = Guice.createInjector(binder -> {
-                    Parameter[] parameters = method.getParameters();
-                    for (Parameter parameter : parameters) {
-                        PathParam param = parameter.getAnnotation(PathParam.class);
-                        binder.bind(String.class).annotatedWith(PathParam.class).to()
-                    }
-                })
-
-
-                System.out.println(method);
+                Pattern pattern = entry.getKey();
+                Matcher matcher = pattern.matcher(uri);
+                if (matcher.matches()) {
+                    Injector injector = Guice.createInjector(binder -> {
+                        for (String key : pattern.groupNames()) {
+                            binder.bind(String.class).annotatedWith(Names.named(key)).toInstance(matcher.group(key));
+                        }
+                        binder.bind(ChannelHandlerContext.class).toInstance(ctx);
+                        binder.bind(FullHttpRequest.class).toInstance(req);
+                        binder.bind(Service.class).to((Class<? extends Service>) method.getDeclaringClass());
+                    });
+                    Service service = injector.getInstance(Service.class);
+                    method.invoke(service);
+                } else {
+                    status(ctx, HttpResponseStatus.NOT_FOUND);
+                }
             }
 
         } finally {
@@ -83,7 +83,7 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private static void sendError(ChannelHandlerContext ctx, HttpResponseStatus status) {
+    private static void status(ChannelHandlerContext ctx, HttpResponseStatus status) {
         FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
                 status, Unpooled.copiedBuffer("Failure: " + status.toString()
                 + "\r\n", CharsetUtil.UTF_8));
