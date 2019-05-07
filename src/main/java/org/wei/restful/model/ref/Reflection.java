@@ -1,6 +1,5 @@
 package org.wei.restful.model.ref;
 
-import lombok.extern.slf4j.Slf4j;
 import org.reflections.Reflections;
 import org.wei.restful.annotations.*;
 import org.wei.restful.service.Service;
@@ -14,7 +13,6 @@ import java.util.Set;
  * @date 2019/4/30
  * @since JDK 1.8
  */
-@Slf4j
 public class Reflection {
 
     /**

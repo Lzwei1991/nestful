@@ -1,7 +1,5 @@
 package org.wei.restful.handler;
 
-import com.google.code.regexp.Matcher;
-import com.google.code.regexp.Pattern;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.name.Names;
@@ -12,14 +10,17 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
-import org.wei.restful.model.ref.Reflection;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.wei.restful.common.Utils;
 import org.wei.restful.model.ref.RestfulMethods;
 import org.wei.restful.service.Service;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
-import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author Lzw
@@ -27,10 +28,7 @@ import java.util.Set;
  * @since JDK 1.8
  */
 public class RestfulHandler extends ChannelInboundHandlerAdapter {
-    static {
-        Set<Class<? extends Service>> classes = Reflection.scannerServiceChild("");
-        Reflection.addRoutePath(classes);
-    }
+    private static Logger log = LoggerFactory.getLogger(RestfulHandler.class);
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
@@ -64,7 +62,7 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                 Matcher matcher = pattern.matcher(uri);
                 if (matcher.matches()) {
                     Injector injector = Guice.createInjector(binder -> {
-                        for (String key : pattern.groupNames()) {
+                        for (String key : Utils.getNamedGroupCandidates(pattern.pattern())) {
                             binder.bind(String.class).annotatedWith(Names.named(key)).toInstance(matcher.group(key));
                         }
                         binder.bind(ChannelHandlerContext.class).toInstance(ctx);
@@ -78,6 +76,9 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                 }
             }
 
+        } catch (Exception e) {
+            log.error("", e);
+            status(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR);
         } finally {
             ReferenceCountUtil.release(msg);
         }

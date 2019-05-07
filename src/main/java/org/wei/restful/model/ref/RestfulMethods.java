@@ -1,11 +1,14 @@
 package org.wei.restful.model.ref;
 
-import com.google.code.regexp.Matcher;
-import com.google.code.regexp.Pattern;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static java.util.regex.Pattern.quote;
 
@@ -15,6 +18,8 @@ import static java.util.regex.Pattern.quote;
  * @since JDK 1.8
  */
 public class RestfulMethods {
+    private static Logger log = LoggerFactory.getLogger(RestfulMethods.class);
+
     private static Map<Pattern, Method> POST = new ConcurrentHashMap<>();
     private static Map<Pattern, Method> GET = new ConcurrentHashMap<>();
     private static Map<Pattern, Method> PUT = new ConcurrentHashMap<>();
@@ -29,6 +34,7 @@ public class RestfulMethods {
      */
     public static void addPostMethod(String url, Method method) {
         POST.put(transform(url), method);
+        log.info("Add request path: {}", url);
     }
 
     /**
@@ -56,6 +62,7 @@ public class RestfulMethods {
      */
     public static void addGetMethod(String url, Method method) {
         GET.put(transform(url), method);
+        log.info("Add request path: {}", url);
     }
 
     /**
@@ -83,6 +90,7 @@ public class RestfulMethods {
      */
     public static void addPutMethod(String url, Method method) {
         PUT.put(transform(url), method);
+        log.info("Add request path: {}", url);
     }
 
     /**
@@ -110,6 +118,7 @@ public class RestfulMethods {
      */
     public static void addDeleteMethod(String url, Method method) {
         DELETE.put(transform(url), method);
+        log.info("Add request path: {}", url);
     }
 
     /**
@@ -143,7 +152,7 @@ public class RestfulMethods {
         Matcher matcher = p.matcher(url);
         while (matcher.find()) {
             String val = matcher.group();
-            url = url.replaceAll(quote(val), "(?" + val.replace("{", "<").replace("}", ">") + ".+?" + ")");
+            url = url.replaceAll(quote(val), "(?" + val.replace("{", "<").replace("}", ">") + "[^/]+?" + ")");
         }
         return Pattern.compile("^" + url + "$");
     }
