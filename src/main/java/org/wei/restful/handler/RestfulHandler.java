@@ -1,5 +1,6 @@
 package org.wei.restful.handler;
 
+import com.alibaba.fastjson.JSON;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.name.Names;
@@ -18,9 +19,13 @@ import org.wei.restful.model.ref.RestfulMethods;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.*;
 import static io.netty.handler.codec.http.HttpHeaderValues.*;
@@ -71,9 +76,25 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                         binder.bind(ChannelHandlerContext.class).toInstance(ctx);
                         binder.bind(FullHttpRequest.class).toInstance(req);
                         binder.bind(Object.class).to(method.getDeclaringClass());
+                        for (Parameter parameter : method.getParameters()) {
+                            if (APPLICATION_JSON.toString().equals(req.headers().get(CONTENT_TYPE))) {
+                                Class type = parameter.getType();
+                                binder.bind(type).toInstance(
+                                        JSON.toJavaObject(
+                                                JSON.parseObject(req.content().toString(Charset.forName("UTF-8"))),
+                                                type
+                                        )
+                                );
+                            } else {
+
+                            }
+                        }
                     });
                     Object service = injector.getInstance(method.getDeclaringClass());
-                    Object result = method.invoke(service);
+                    Object[] objects = Stream.of(method.getParameters())
+                            .map(parameter -> injector.getInstance(parameter.getType()))
+                            .toArray();
+                    Object result = method.invoke(service, objects);
                     this.response(req, result);
                 } else {
                     status(ctx, HttpResponseStatus.NOT_FOUND);
