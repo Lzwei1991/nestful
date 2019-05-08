@@ -3,6 +3,7 @@ package org.wei.restful.handler;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.name.Names;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -14,13 +15,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.wei.restful.common.Utils;
 import org.wei.restful.model.ref.RestfulMethods;
-import org.wei.restful.service.Service;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static io.netty.handler.codec.http.HttpHeaderNames.*;
+import static io.netty.handler.codec.http.HttpHeaderValues.*;
 
 /**
  * @author Lzw
@@ -67,10 +70,11 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                         }
                         binder.bind(ChannelHandlerContext.class).toInstance(ctx);
                         binder.bind(FullHttpRequest.class).toInstance(req);
-                        binder.bind(Service.class).to((Class<? extends Service>) method.getDeclaringClass());
+                        binder.bind(Object.class).to(method.getDeclaringClass());
                     });
-                    Service service = injector.getInstance(Service.class);
-                    method.invoke(service);
+                    Object service = injector.getInstance(method.getDeclaringClass());
+                    Object result = method.invoke(service);
+                    this.response(req, result);
                 } else {
                     status(ctx, HttpResponseStatus.NOT_FOUND);
                 }
@@ -84,7 +88,13 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private static void status(ChannelHandlerContext ctx, HttpResponseStatus status) {
+    /**
+     * response http status
+     *
+     * @param ctx    socket channel
+     * @param status http status
+     */
+    private void status(ChannelHandlerContext ctx, HttpResponseStatus status) {
         FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
                 status, Unpooled.copiedBuffer("Failure: " + status.toString()
                 + "\r\n", CharsetUtil.UTF_8));
@@ -92,4 +102,41 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 
+
+    /**
+     * response result
+     *
+     * @param result result
+     * @return
+     */
+    private FullHttpResponse response(FullHttpRequest req, Object result) {
+        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+
+        if (req.headers().get(ACCEPT).contains("json")) {
+            response.headers().set(CONTENT_TYPE, APPLICATION_JSON + ";charset=UTF-8");
+        } else if (req.headers().get(ACCEPT).contains("text")) {
+            response.headers().set(CONTENT_TYPE, TEXT_PLAIN + ";charset=UTF-8");
+        } else if (req.headers().get(ACCEPT).contains("xml")) {
+            response.headers().set(CONTENT_TYPE, "application/xml;charset=UTF-8");
+        } else {
+            response.headers().set(CONTENT_TYPE, APPLICATION_JSON + ";charset=UTF-8");
+        }
+
+        if (result instanceof String || result instanceof Map) {
+            // body content
+            response.content().clear().writeBytes(Unpooled.copiedBuffer(result.toString(), HttpConstants.DEFAULT_CHARSET));
+        } else if (result instanceof ByteBuf || result instanceof byte[]) {
+            byte[] buf = result instanceof ByteBuf ? ((ByteBuf) result).array() : (byte[]) result;
+            // body content
+            response.content().clear().writeBytes(buf);
+            response.headers().set(CONTENT_TYPE, APPLICATION_OCTET_STREAM);
+        } else {
+            return response;
+        }
+        response.headers().setInt(CONTENT_LENGTH, response.content().readableBytes());
+        response.headers().set(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+        response.headers().set(ACCESS_CONTROL_ALLOW_HEADERS, "x-requested-with,content-type");
+
+        return response;
+    }
 }
