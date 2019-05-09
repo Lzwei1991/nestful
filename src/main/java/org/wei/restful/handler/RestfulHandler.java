@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.wei.restful.common.Utils;
 import org.wei.restful.model.ref.RestfulMethods;
 
+import javax.xml.bind.JAXB;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -24,7 +25,6 @@ import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.*;
@@ -77,8 +77,8 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                         binder.bind(FullHttpRequest.class).toInstance(req);
                         binder.bind(Object.class).to(method.getDeclaringClass());
                         for (Parameter parameter : method.getParameters()) {
+                            Class type = parameter.getType();
                             if (APPLICATION_JSON.toString().equals(req.headers().get(CONTENT_TYPE))) {
-                                Class type = parameter.getType();
                                 binder.bind(type).toInstance(
                                         JSON.toJavaObject(
                                                 JSON.parseObject(req.content().toString(Charset.forName("UTF-8"))),
@@ -86,7 +86,12 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                                         )
                                 );
                             } else {
-
+                                binder.bind(type).toInstance(
+                                        JAXB.unmarshal(
+                                                req.content().toString(Charset.forName("UTF-8")),
+                                                type
+                                        )
+                                );
                             }
                         }
                     });
