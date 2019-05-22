@@ -70,7 +70,7 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                 if (matcher.matches()) {
                     Injector injector = Guice.createInjector(binder -> {
                         for (String key : Utils.getNamedGroupCandidates(pattern.pattern())) {
-                            binder.bind(String.class).annotatedWith(Names.named("")).toInstance(matcher.group(key));
+                            binder.bind(String.class).annotatedWith(Names.named(key)).toInstance(matcher.group(key));
                         }
                         binder.bind(ChannelHandlerContext.class).toInstance(ctx);
                         binder.bind(FullHttpRequest.class).toInstance(req);
