@@ -34,7 +34,7 @@ public class RestfulMethods {
      */
     public static void addPostMethod(String url, Method method) {
         POST.put(transform(url), method);
-        log.info("Add request path: {}", url);
+        log.info("Add [POST] request uri: {}", url);
     }
 
     /**
@@ -62,7 +62,7 @@ public class RestfulMethods {
      */
     public static void addGetMethod(String url, Method method) {
         GET.put(transform(url), method);
-        log.info("Add request path: {}", url);
+        log.info("Add [GET] request uri: {}", url);
     }
 
     /**
@@ -90,7 +90,7 @@ public class RestfulMethods {
      */
     public static void addPutMethod(String url, Method method) {
         PUT.put(transform(url), method);
-        log.info("Add request path: {}", url);
+        log.info("Add [PUT] request uri: {}", url);
     }
 
     /**
@@ -118,7 +118,7 @@ public class RestfulMethods {
      */
     public static void addDeleteMethod(String url, Method method) {
         DELETE.put(transform(url), method);
-        log.info("Add request path: {}", url);
+        log.info("Add [DELETE] request uri: {}", url);
     }
 
     /**

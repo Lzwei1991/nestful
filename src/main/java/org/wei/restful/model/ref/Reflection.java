@@ -36,10 +36,14 @@ public class Reflection {
             String uri = path.value();
             Method[] methods = clazz.getMethods();
             for (Method m : methods) {
-                Optional.ofNullable(m.getAnnotation(POST.class)).ifPresent(post -> RestfulMethods.addPostMethod(uri, m));
-                Optional.ofNullable(m.getAnnotation(PUT.class)).ifPresent(put -> RestfulMethods.addPutMethod(uri, m));
-                Optional.ofNullable(m.getAnnotation(GET.class)).ifPresent(get -> RestfulMethods.addGetMethod(uri, m));
-                Optional.ofNullable(m.getAnnotation(DELETE.class)).ifPresent(delete -> RestfulMethods.addDeleteMethod(uri, m));
+                Optional.ofNullable(m.getAnnotation(POST.class))
+                        .ifPresent(post -> RestfulMethods.addPostMethod(uri + post.value(), m));
+                Optional.ofNullable(m.getAnnotation(PUT.class))
+                        .ifPresent(put -> RestfulMethods.addPutMethod(uri + put.value(), m));
+                Optional.ofNullable(m.getAnnotation(GET.class))
+                        .ifPresent(get -> RestfulMethods.addGetMethod(uri + get.value(), m));
+                Optional.ofNullable(m.getAnnotation(DELETE.class))
+                        .ifPresent(delete -> RestfulMethods.addDeleteMethod(uri + delete.value(), m));
             }
         }
     }

@@ -100,7 +100,8 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                             .map(parameter -> injector.getInstance(parameter.getType()))
                             .toArray();
                     Object result = method.invoke(service, objects);
-                    this.response(req, result);
+                    FullHttpResponse response = this.response(req, result);
+                    ctx.writeAndFlush(response);
                 } else {
                     status(ctx, HttpResponseStatus.NOT_FOUND);
                 }
