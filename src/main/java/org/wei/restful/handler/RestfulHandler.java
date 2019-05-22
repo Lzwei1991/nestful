@@ -1,6 +1,5 @@
 package org.wei.restful.handler;
 
-import com.alibaba.fastjson.JSON;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.name.Names;
@@ -12,21 +11,21 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
+import org.aopalliance.intercept.MethodInvocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.wei.restful.annotations.PathParam;
 import org.wei.restful.common.Utils;
 import org.wei.restful.model.ref.RestfulMethods;
 
-import javax.xml.bind.JAXB;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
-import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
+import static com.google.inject.matcher.Matchers.annotatedWith;
+import static com.google.inject.matcher.Matchers.any;
 import static io.netty.handler.codec.http.HttpHeaderNames.*;
 import static io.netty.handler.codec.http.HttpHeaderValues.*;
 
@@ -71,37 +70,22 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                 if (matcher.matches()) {
                     Injector injector = Guice.createInjector(binder -> {
                         for (String key : Utils.getNamedGroupCandidates(pattern.pattern())) {
-                            binder.bind(String.class).annotatedWith(Names.named(key)).toInstance(matcher.group(key));
+                            binder.bind(String.class).annotatedWith(Names.named("")).toInstance(matcher.group(key));
                         }
                         binder.bind(ChannelHandlerContext.class).toInstance(ctx);
                         binder.bind(FullHttpRequest.class).toInstance(req);
                         binder.bind(Object.class).to(method.getDeclaringClass());
-                        for (Parameter parameter : method.getParameters()) {
-                            Class type = parameter.getType();
-                            if (APPLICATION_JSON.toString().equals(req.headers().get(CONTENT_TYPE))) {
-                                binder.bind(type).toInstance(
-                                        JSON.toJavaObject(
-                                                JSON.parseObject(req.content().toString(Charset.forName("UTF-8"))),
-                                                type
-                                        )
-                                );
-                            } else {
-                                binder.bind(type).toInstance(
-                                        JAXB.unmarshal(
-                                                req.content().toString(Charset.forName("UTF-8")),
-                                                type
-                                        )
-                                );
-                            }
-                        }
+
+                        binder.bindInterceptor(any(), annotatedWith(PathParam.class), MethodInvocation::getMethod);
                     });
-                    Object service = injector.getInstance(method.getDeclaringClass());
-                    Object[] objects = Stream.of(method.getParameters())
-                            .map(parameter -> injector.getInstance(parameter.getType()))
-                            .toArray();
-                    Object result = method.invoke(service, objects);
-                    FullHttpResponse response = this.response(req, result);
-                    ctx.writeAndFlush(response);
+                    // Object service =
+                    injector.getInstance(method.getDeclaringClass());
+                    // Object[] objects = Stream.of(method.getParameters())
+                    //         .map(parameter -> injector.getInstance(parameter.getType()))
+                    //         .toArray();
+                    // Object result = method.invoke(service, objects);
+                    // FullHttpResponse response = this.response(req, result);
+                    // ctx.writeAndFlush(response);
                 } else {
                     status(ctx, HttpResponseStatus.NOT_FOUND);
                 }
@@ -136,7 +120,7 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
      * @param result result
      * @return
      */
-    private FullHttpResponse response(FullHttpRequest req, Object result) {
+    public static FullHttpResponse response(FullHttpRequest req, Object result) {
         FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
 
         if (req.headers().get(ACCEPT).contains("json")) {
