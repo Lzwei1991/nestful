@@ -63,4 +63,11 @@ public abstract class Service {
         ctx.writeAndFlush(response);
     }
 
+    /**
+     * @param result
+     */
+    public void response(Object result) {
+        ctx.writeAndFlush(createResponse(result));
+    }
+
 }

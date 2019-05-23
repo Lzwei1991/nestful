@@ -33,9 +33,8 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
-        if (!(msg instanceof HttpRequest)) {
+        if (!(msg instanceof HttpRequest))
             return;
-        }
 
         try {
             FullHttpRequest req = (FullHttpRequest) msg;
