@@ -1,5 +1,6 @@
 package org.wei.restful.handler;
 
+import com.alibaba.fastjson.JSON;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import io.netty.buffer.Unpooled;
@@ -12,16 +13,22 @@ import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.wei.restful.annotations.Params;
+import org.wei.restful.annotations.PathParam;
 import org.wei.restful.common.Utils;
 import org.wei.restful.model.ref.RestfulMethods;
+import org.wei.restful.service.Service;
 
+import javax.xml.bind.JAXB;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.google.inject.matcher.Matchers.any;
+import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
 
 /**
  * @author Lzw
@@ -67,7 +74,31 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                         }
                         binder.bind(ChannelHandlerContext.class).toInstance(ctx);
                         binder.bind(FullHttpRequest.class).toInstance(req);
-                        binder.bind(Object.class).to(method.getDeclaringClass());
+                        binder.bind(Service.class).to((Class<? extends Service>) method.getDeclaringClass());
+
+                        for (Parameter parameter : method.getParameters()) {
+                            if (parameter.getAnnotation(PathParam.class) != null) {
+                                continue;
+                            }
+
+                            Class type = parameter.getType();
+                            if (req.headers().get(CONTENT_TYPE).toLowerCase().contains("json")) {
+                                binder.bind(type).toInstance(
+                                        JSON.toJavaObject(
+                                                JSON.parseObject(req.content().toString(Charset.forName("UTF-8"))),
+                                                type
+                                        )
+                                );
+                            } else {
+                                binder.bind(type).toInstance(
+                                        JAXB.unmarshal(
+                                                req.content().toString(Charset.forName("UTF-8")),
+                                                type
+                                        )
+                                );
+                            }
+                        }
+
 
                         binder.bindInterceptor(any(), any(), invocation -> {
                             if (invocation.getMethod().equals(method))
@@ -76,7 +107,7 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                         });
                     });
                     // Object service =
-                    injector.getInstance(method.getDeclaringClass());
+                    injector.getInstance(Service.class);
                     // Object[] objects = Stream.of(method.getParameters())
                     //         .map(parameter -> injector.getInstance(parameter.getType()))
                     //         .toArray();

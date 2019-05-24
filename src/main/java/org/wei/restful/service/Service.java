@@ -1,9 +1,11 @@
 package org.wei.restful.service;
 
+import com.google.inject.Inject;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.*;
+import io.netty.util.internal.StringUtil;
 
 import java.util.Map;
 
@@ -11,9 +13,10 @@ import static io.netty.handler.codec.http.HttpHeaderNames.*;
 import static io.netty.handler.codec.http.HttpHeaderValues.*;
 
 public abstract class Service {
-    private ChannelHandlerContext ctx;
-    private FullHttpRequest req;
+    public ChannelHandlerContext ctx;
+    public FullHttpRequest req;
 
+    @Inject
     public Service(ChannelHandlerContext ctx, FullHttpRequest req) {
         this.ctx = ctx;
         this.req = req;
@@ -28,14 +31,14 @@ public abstract class Service {
     public FullHttpResponse createResponse(Object result) {
         FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
 
-        if (req.headers().get(ACCEPT).contains("json")) {
-            response.headers().set(CONTENT_TYPE, APPLICATION_JSON + ";charset=UTF-8");
-        } else if (req.headers().get(ACCEPT).contains("text")) {
-            response.headers().set(CONTENT_TYPE, TEXT_PLAIN + ";charset=UTF-8");
-        } else if (req.headers().get(ACCEPT).contains("xml")) {
-            response.headers().set(CONTENT_TYPE, "application/xml;charset=UTF-8");
-        } else {
-            response.headers().set(CONTENT_TYPE, APPLICATION_JSON + ";charset=UTF-8");
+        response.headers().set(CONTENT_TYPE, TEXT_PLAIN + ";charset=UTF-8");
+        String accept = req.headers().get(ACCEPT);
+        if (!StringUtil.isNullOrEmpty(accept)) {
+            if (accept.contains("json")) {
+                response.headers().set(CONTENT_TYPE, APPLICATION_JSON + ";charset=UTF-8");
+            } else if (accept.contains("xml")) {
+                response.headers().set(CONTENT_TYPE, "application/xml;charset=UTF-8");
+            }
         }
 
         if (result instanceof String || result instanceof Map) {
@@ -67,7 +70,6 @@ public abstract class Service {
      * @param result
      */
     public void response(Object result) {
-        ctx.writeAndFlush(createResponse(result));
+        response(this.createResponse(result));
     }
-
 }
