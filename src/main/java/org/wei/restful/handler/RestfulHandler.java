@@ -10,6 +10,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.internal.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.wei.restful.annotations.Params;
@@ -82,20 +83,19 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                             }
 
                             Class type = parameter.getType();
-                            if (req.headers().get(CONTENT_TYPE).toLowerCase().contains("json")) {
-                                binder.bind(type).toInstance(
-                                        JSON.toJavaObject(
-                                                JSON.parseObject(req.content().toString(Charset.forName("UTF-8"))),
-                                                type
-                                        )
-                                );
+                            String body = req.content().toString(Charset.forName("UTF-8"));
+                            if (!StringUtil.isNullOrEmpty(body)) {
+                                if (req.headers().get(CONTENT_TYPE).toLowerCase().contains("json")) {
+                                    binder.bind(type).toInstance(JSON.toJavaObject(JSON.parseObject(body), type));
+                                } else {
+                                    binder.bind(type).toInstance(JAXB.unmarshal(body, type));
+                                }
                             } else {
-                                binder.bind(type).toInstance(
-                                        JAXB.unmarshal(
-                                                req.content().toString(Charset.forName("UTF-8")),
-                                                type
-                                        )
-                                );
+                                try {
+                                    binder.bind(type).toInstance(type.newInstance());
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
                             }
                         }
 
