@@ -50,6 +50,7 @@ public abstract class Service {
             response.content().clear().writeBytes(buf);
             response.headers().set(CONTENT_TYPE, APPLICATION_OCTET_STREAM);
         } else {
+            response.content().clear().writeBytes(Unpooled.copiedBuffer(result.toString(), HttpConstants.DEFAULT_CHARSET));
             return response;
         }
         response.headers().setInt(CONTENT_LENGTH, response.content().readableBytes());
