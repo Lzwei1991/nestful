@@ -75,7 +75,11 @@ public abstract class Service {
         response(this.createResponse(result));
     }
 
-    public FullHttpResponse status(ChannelHandlerContext ctx, HttpResponseStatus status) {
+    public FullHttpResponse notFound() {
+        return status(HttpResponseStatus.NOT_FOUND);
+    }
+
+    public FullHttpResponse status(HttpResponseStatus status) {
         FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, Unpooled.copiedBuffer("Failure: " + status.toString() + "\r\n", CharsetUtil.UTF_8));
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
         return response;
