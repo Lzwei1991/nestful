@@ -5,6 +5,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.*;
+import io.netty.util.CharsetUtil;
 import io.netty.util.internal.StringUtil;
 
 import java.util.Map;
@@ -72,5 +73,11 @@ public abstract class Service {
      */
     public void response(Object result) {
         response(this.createResponse(result));
+    }
+
+    public FullHttpResponse status(ChannelHandlerContext ctx, HttpResponseStatus status) {
+        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, Unpooled.copiedBuffer("Failure: " + status.toString() + "\r\n", CharsetUtil.UTF_8));
+        response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
+        return response;
     }
 }
