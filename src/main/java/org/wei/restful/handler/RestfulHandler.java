@@ -27,8 +27,8 @@ import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
-import static com.google.inject.matcher.Matchers.any;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
 
 /**
@@ -79,6 +79,10 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
 
                         for (Parameter parameter : method.getParameters()) {
                             if (parameter.getAnnotation(PathParam.class) != null) {
+                                // PathParam pathParam = parameter.getAnnotation(PathParam.class);
+                                // binder.bind(parameter.getType())
+                                //         .annotatedWith(Params.param(pathParam.value()))
+                                //         .toInstance(matcher.group(pathParam.value()));
                                 continue;
                             }
 
@@ -100,18 +104,23 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                         }
 
 
-                        binder.bindInterceptor(any(), any(), invocation -> {
-                            if (invocation.getMethod().equals(method))
-                                return invocation.proceed();
-                            return null;
-                        });
+                        // binder.bindInterceptor(any(), any(), invocation -> {
+                        //     if (invocation.getMethod().equals(method))
+                        //         return invocation.proceed();
+                        //     return null;
+                        // });
                     });
-                    // Object service =
-                    injector.getInstance(Service.class);
-                    // Object[] objects = Stream.of(method.getParameters())
-                    //         .map(parameter -> injector.getInstance(parameter.getType()))
-                    //         .toArray();
-                    // Object result = method.invoke(service, objects);
+                    Service service = injector.getInstance(Service.class);
+                    Object[] objects = Stream.of(method.getParameters())
+                            .map(parameter -> {
+                                if (parameter.getAnnotation(PathParam.class) != null) {
+                                    return injector.getBinding(String.class);
+                                }
+                                return injector.getInstance(parameter.getType());
+                            })
+                            .toArray();
+                    method.invoke(service, objects);
+                    // Object result =  method.invoke(service, objects);
                     // FullHttpResponse response = this.response(req, result);
                     // ctx.writeAndFlush(response);
                 } else {

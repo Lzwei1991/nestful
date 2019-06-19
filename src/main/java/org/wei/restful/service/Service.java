@@ -72,7 +72,7 @@ public abstract class Service {
      * @param result
      */
     public void response(Object result) {
-        response(this.createResponse(result));
+        response(createResponse(result));
     }
 
     public FullHttpResponse notFound() {

@@ -10,7 +10,7 @@ import java.lang.annotation.*;
  * @since JDK 1.8
  */
 @BindingAnnotation
-@Target({ElementType.PARAMETER})
+@Target({ElementType.PARAMETER, ElementType.FIELD})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface PathParam {
