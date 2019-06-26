@@ -5,7 +5,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,116 +22,28 @@ import static java.util.regex.Pattern.quote;
 public class RestfulMethods {
     private static Logger log = LoggerFactory.getLogger(RestfulMethods.class);
 
-    private static Map<Pattern, Method> POST = new ConcurrentHashMap<>();
-    private static Map<Pattern, Method> GET = new ConcurrentHashMap<>();
-    private static Map<Pattern, Method> PUT = new ConcurrentHashMap<>();
-    private static Map<Pattern, Method> DELETE = new ConcurrentHashMap<>();
-
+    private static Map<Pattern, Set<Method>> restful_mapping = new ConcurrentHashMap<>();
 
     /**
-     * registration POST url
+     * registration restful_mapping url
      *
      * @param url    post request uniform resource locator
      * @param method method
      */
-    public static void addPostMethod(String url, Method method) {
-        POST.put(transform(url), method);
-        log.info("Add [POST] request uri: {}", url);
+    public static void addMapping(String url, Method method) {
+        restful_mapping.computeIfAbsent(transform(url), key -> new HashSet<>()).add(method);
+        log.info("Add [restful_mapping] request uri: {}", url);
     }
 
     /**
-     * POST request
+     * restful_mapping request
      *
      * @param url request url
      * @return matcher case
      */
-    public static Map.Entry<Pattern, Method> POST(String url) {
+    public static Map.Entry<Pattern, Set<Method>> requests(String url) {
 
-        for (Map.Entry<Pattern, Method> entry : POST.entrySet()) {
-            Matcher m = entry.getKey().matcher(url);
-            if (m.matches()) {
-                return entry;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * registration GET url
-     *
-     * @param url    post request uniform resource locator
-     * @param method method
-     */
-    public static void addGetMethod(String url, Method method) {
-        GET.put(transform(url), method);
-        log.info("Add [GET] request uri: {}", url);
-    }
-
-    /**
-     * GET request
-     *
-     * @param url request url
-     * @return matcher case
-     */
-    public static Map.Entry<Pattern, Method> GET(String url) {
-
-        for (Map.Entry<Pattern, Method> entry : GET.entrySet()) {
-            Matcher m = entry.getKey().matcher(url);
-            if (m.matches()) {
-                return entry;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * registration PUT url
-     *
-     * @param url    post request uniform resource locator
-     * @param method method
-     */
-    public static void addPutMethod(String url, Method method) {
-        PUT.put(transform(url), method);
-        log.info("Add [PUT] request uri: {}", url);
-    }
-
-    /**
-     * PUT request
-     *
-     * @param url request url
-     * @return matcher case
-     */
-    public static Map.Entry<Pattern, Method> PUT(String url) {
-
-        for (Map.Entry<Pattern, Method> entry : PUT.entrySet()) {
-            Matcher m = entry.getKey().matcher(url);
-            if (m.matches()) {
-                return entry;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * registration DELETE url
-     *
-     * @param url    post request uniform resource locator
-     * @param method method
-     */
-    public static void addDeleteMethod(String url, Method method) {
-        DELETE.put(transform(url), method);
-        log.info("Add [DELETE] request uri: {}", url);
-    }
-
-    /**
-     * DELETE request
-     *
-     * @param url request url
-     * @return matcher case
-     */
-    public static Map.Entry<Pattern, Method> DELETE(String url) {
-
-        for (Map.Entry<Pattern, Method> entry : DELETE.entrySet()) {
+        for (Map.Entry<Pattern, Set<Method>> entry : restful_mapping.entrySet()) {
             Matcher m = entry.getKey().matcher(url);
             if (m.matches()) {
                 return entry;

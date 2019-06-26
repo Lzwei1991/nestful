@@ -37,13 +37,13 @@ public class Reflection {
             Method[] methods = clazz.getMethods();
             for (Method m : methods) {
                 Optional.ofNullable(m.getAnnotation(POST.class))
-                        .ifPresent(post -> RestfulMethods.addPostMethod(uri + post.value(), m));
+                        .ifPresent(post -> RestfulMethods.addMapping(uri + post.value(), m));
                 Optional.ofNullable(m.getAnnotation(PUT.class))
-                        .ifPresent(put -> RestfulMethods.addPutMethod(uri + put.value(), m));
+                        .ifPresent(put -> RestfulMethods.addMapping(uri + put.value(), m));
                 Optional.ofNullable(m.getAnnotation(GET.class))
-                        .ifPresent(get -> RestfulMethods.addGetMethod(uri + get.value(), m));
+                        .ifPresent(get -> RestfulMethods.addMapping(uri + get.value(), m));
                 Optional.ofNullable(m.getAnnotation(DELETE.class))
-                        .ifPresent(delete -> RestfulMethods.addDeleteMethod(uri + delete.value(), m));
+                        .ifPresent(delete -> RestfulMethods.addMapping(uri + delete.value(), m));
             }
         }
     }

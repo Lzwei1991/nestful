@@ -14,8 +14,8 @@ import static io.netty.handler.codec.http.HttpHeaderNames.*;
 import static io.netty.handler.codec.http.HttpHeaderValues.*;
 
 public abstract class Service {
-    public ChannelHandlerContext ctx;
-    public FullHttpRequest req;
+    private ChannelHandlerContext ctx;
+    private FullHttpRequest req;
 
     @Inject
     public Service(ChannelHandlerContext ctx, FullHttpRequest req) {
