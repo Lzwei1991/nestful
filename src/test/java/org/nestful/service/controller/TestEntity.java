@@ -1,4 +1,4 @@
-package org.wei.restful.service.controller;
+package org.nestful.service.controller;
 
 /**
  * @author Lzw

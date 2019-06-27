@@ -1,4 +1,4 @@
-package org.wei.restful.annotations;
+package org.nestful.annotations;
 
 import java.lang.annotation.*;
 

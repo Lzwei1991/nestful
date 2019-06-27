@@ -1,4 +1,4 @@
-package org.wei.restful.annotations;
+package org.nestful.annotations;
 
 import java.lang.annotation.*;
 
@@ -10,6 +10,6 @@ import java.lang.annotation.*;
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface POST {
+public @interface PUT {
     String value() default "";
 }

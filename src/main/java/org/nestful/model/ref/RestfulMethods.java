@@ -1,4 +1,4 @@
-package org.wei.restful.model.ref;
+package org.nestful.model.ref;
 
 
 import org.slf4j.Logger;

@@ -1,4 +1,4 @@
-package org.wei.restful.common;
+package org.nestful.common;
 
 import java.util.Set;
 import java.util.TreeSet;

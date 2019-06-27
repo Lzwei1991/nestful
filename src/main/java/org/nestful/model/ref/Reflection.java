@@ -1,7 +1,8 @@
-package org.wei.restful.model.ref;
+package org.nestful.model.ref;
 
+import org.nestful.annotations.*;
 import org.reflections.Reflections;
-import org.wei.restful.annotations.*;
+import org.nestful.annotations.*;
 
 import java.lang.reflect.Method;
 import java.util.Optional;

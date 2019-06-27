@@ -1,4 +1,4 @@
-package org.wei.restful.service;
+package org.nestful.service;
 
 import com.google.inject.Inject;
 import io.netty.buffer.ByteBuf;

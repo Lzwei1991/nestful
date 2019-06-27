@@ -1,4 +1,4 @@
-package org.wei.restful.annotations;
+package org.nestful.annotations;
 
 import com.google.inject.Binder;
 import com.google.inject.Key;
@@ -88,7 +88,7 @@ public class Params {
 
     /**
      * Creates a constant binding to {@code @Named(key)} for each property. This method binds all
-     * properties including those inherited from {@link Properties#defaults defaults}.
+     * properties including those inherited from {@link Properties defaults}.
      */
     public static void bindProperties(Binder binder, Properties properties) {
         binder = binder.skipSources(Names.class);
