@@ -3,6 +3,7 @@ package org.nestful.handler;
 import com.alibaba.fastjson.JSON;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -14,13 +15,11 @@ import io.netty.util.internal.StringUtil;
 import org.nestful.annotations.*;
 import org.nestful.common.Utils;
 import org.nestful.model.ref.RestfulMethods;
+import org.nestful.service.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.nestful.annotations.*;
-import org.nestful.service.Service;
 
 import javax.xml.bind.JAXB;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.nio.charset.Charset;
@@ -30,18 +29,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_TYPE;
+import static io.netty.handler.codec.http.HttpHeaderNames.*;
+import static io.netty.handler.codec.http.HttpHeaderValues.*;
 
 /**
  * @author Lzw
  * @date 2019/5/5
  * @since JDK 1.8
  */
+@SuppressWarnings("unchecked")
 public class RestfulHandler extends ChannelInboundHandlerAdapter {
     private static Logger log = LoggerFactory.getLogger(RestfulHandler.class);
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (!(msg instanceof HttpRequest)) {
             ReferenceCountUtil.release(msg);
             return;
@@ -50,13 +51,16 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
         try {
             FullHttpRequest req = (FullHttpRequest) msg;
             String uri = req.uri();
+            if (uri.contains("?")) {
+                uri = uri.substring(0, uri.indexOf("?"));
+            }
+
             HttpMethod httpMethod = req.method();
             Map.Entry<Pattern, Set<Method>> entry = RestfulMethods.requests(uri);
             if (entry == null) {
                 status(ctx, HttpResponseStatus.NOT_FOUND);
                 return;
             }
-
 
             Set<Method> methodSet = entry.getValue();
             Pattern pattern = entry.getKey();
@@ -133,10 +137,10 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                             return injector.getInstance(parameter.getType());
                         })
                         .toArray();
-                method.invoke(service, objects);
-                // Object result =  method.invoke(service, objects);
-                // FullHttpResponse response = this.response(req, result);
-                // ctx.writeAndFlush(response);
+                // method.invoke(service, objects);
+                Object result = method.invoke(service, objects);
+                FullHttpResponse response = this.createResponse(req, result);
+                ctx.writeAndFlush(response);
             } else {
                 status(ctx, HttpResponseStatus.NOT_FOUND);
             }
@@ -161,5 +165,43 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                 + "\r\n", CharsetUtil.UTF_8));
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+    }
+
+    /**
+     * create response
+     *
+     * @param result result value
+     * @return FullHttpResponse
+     */
+    public FullHttpResponse createResponse(HttpRequest req, Object result) {
+        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+
+        response.headers().set(CONTENT_TYPE, TEXT_PLAIN + ";charset=UTF-8");
+        String accept = req.headers().get(ACCEPT);
+        if (!StringUtil.isNullOrEmpty(accept)) {
+            if (accept.contains("json")) {
+                response.headers().set(CONTENT_TYPE, APPLICATION_JSON + ";charset=UTF-8");
+            } else if (accept.contains("xml")) {
+                response.headers().set(CONTENT_TYPE, "application/xml;charset=UTF-8");
+            }
+        }
+
+        if (result instanceof String || result instanceof Map) {
+            // body content
+            response.content().clear().writeBytes(Unpooled.copiedBuffer(result.toString(), HttpConstants.DEFAULT_CHARSET));
+        } else if (result instanceof ByteBuf || result instanceof byte[]) {
+            byte[] buf = result instanceof ByteBuf ? ((ByteBuf) result).array() : (byte[]) result;
+            // body content
+            response.content().clear().writeBytes(buf);
+            response.headers().set(CONTENT_TYPE, APPLICATION_OCTET_STREAM);
+        } else {
+            response.content().clear().writeBytes(Unpooled.copiedBuffer(result.toString(), HttpConstants.DEFAULT_CHARSET));
+            return response;
+        }
+        response.headers().setInt(CONTENT_LENGTH, response.content().readableBytes());
+        response.headers().set(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+        response.headers().set(ACCESS_CONTROL_ALLOW_HEADERS, "x-requested-with,content-type");
+
+        return response;
     }
 }
