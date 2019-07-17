@@ -200,7 +200,8 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
         }
         response.headers().setInt(CONTENT_LENGTH, response.content().readableBytes());
         response.headers().set(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-        response.headers().set(ACCESS_CONTROL_ALLOW_HEADERS, "x-requested-with,content-type");
+        response.headers().set(ACCESS_CONTROL_ALLOW_METHODS, "GET,PUT,POST,DELETE,OPTIONS,HEAD,PATCH,TRACE");
+        response.headers().set(ACCESS_CONTROL_ALLOW_HEADERS, "Accept,Origin,X-Requested-With,Content-Type,Last-Modified,device,token");
 
         return response;
     }
