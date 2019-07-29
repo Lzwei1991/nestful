@@ -4,7 +4,7 @@
 使用者只需要在 netty 的 channel pipe 中加入 RestfulHandler 即可使用。\
 \
 \
-template: \
+template: 
 ```
 EventLoopGroup bossGroup = new NioEventLoopGroup();
 EventLoopGroup workerGroup = new NioEventLoopGroup();
