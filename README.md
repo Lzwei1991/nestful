@@ -4,10 +4,8 @@
 使用者只需要在 netty 的 channel pipe 中加入 RestfulHandler 即可使用。\
 \
 \
-\
-\
-template
-`
+template: \
+```
 EventLoopGroup bossGroup = new NioEventLoopGroup();
 EventLoopGroup workerGroup = new NioEventLoopGroup();
 try {
@@ -32,4 +30,4 @@ try {
 ChannelFuture f = bootstrapHttp.bind(8080).sync();
 System.out.println("HTTP[" + 8080 + "], Http Server start...");
 f.channel().closeFuture().sync();
-`
+```
