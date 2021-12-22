@@ -6,7 +6,7 @@
 \
 \
 template: 
-```
+```java
 EventLoopGroup bossGroup = new NioEventLoopGroup();
 EventLoopGroup workerGroup = new NioEventLoopGroup();
 try {
@@ -25,7 +25,7 @@ try {
             ch.pipeline().addLast(new HttpObjectAggregator(1024 * 1024 * 8));//8k
             ch.pipeline().addLast(new HttpResponseEncoder());
             ch.pipeline().addLast(new HttpContentCompressor());
-            ch.pipeline().addLast(new RestfulHandler());
+            ch.pipeline().addLast(new <font color='red'>RestfulHandler</font>());
         }
     });
 ChannelFuture f = bootstrapHttp.bind(8080).sync();
