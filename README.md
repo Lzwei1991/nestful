@@ -25,8 +25,7 @@ try {
             ch.pipeline().addLast(new HttpObjectAggregator(1024 * 1024 * 8));//8k
             ch.pipeline().addLast(new HttpResponseEncoder());
             ch.pipeline().addLast(new HttpContentCompressor());
-            // code for red
-            ch.pipeline().addLast(new RestfulHandler());
+            ch.pipeline().addLast(new `red`RestfulHandler``());
         }
     });
 ChannelFuture f = bootstrapHttp.bind(8080).sync();
