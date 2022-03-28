@@ -1,10 +1,11 @@
-package org.nestful.annotations;
+package xyz.lzw.nestful.ref.params;
 
 import com.google.inject.Binder;
 import com.google.inject.Key;
 import com.google.inject.internal.Annotations;
 import com.google.inject.name.Named;
 import com.google.inject.name.Names;
+import xyz.lzw.nestful.annotations.Param;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
@@ -15,18 +16,21 @@ import java.util.Properties;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * @author Lzw
- * @date 2019/5/23
- * @since JDK 1.8
+ * TODO
+ *
+ * @author liangzhuowei
+ * @date 2022/3/26
+ * @since open-jdk 11
  */
-public class Params {
+public class RequestParams {
 
-    public static class PathParamImpl implements PathParam, Serializable {
+
+    public static class ParamImpl implements Param, Serializable {
 
         private static final long serialVersionUID = -3192454276606618806L;
         private final String value;
 
-        private PathParamImpl(String value) {
+        private ParamImpl(String value) {
             this.value = checkNotNull(value, "name");
         }
 
@@ -43,35 +47,35 @@ public class Params {
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof PathParam)) {
+            if (!(o instanceof Param)) {
                 return false;
             }
 
-            PathParam other = (PathParam) o;
+            Param other = (Param) o;
             return value.equals(other.value());
         }
 
         @Override
         public String toString() {
-            return "@" + PathParam.class.getName() + "(value=" + Annotations.memberValueString(value) + ")";
+            return "@" + Param.class.getName() + "(value=" + Annotations.memberValueString(value) + ")";
         }
 
         @Override
         public Class<? extends Annotation> annotationType() {
-            return PathParam.class;
+            return Param.class;
         }
 
     }
 
 
-    private Params() {
+    private RequestParams() {
     }
 
     /**
      * Creates a {@link Named} annotation with {@code name} as the value.
      */
-    public static PathParam param(String name) {
-        return new PathParamImpl(name);
+    public static Param param(String name) {
+        return new RequestParams.ParamImpl(name);
     }
 
     /**
@@ -82,7 +86,7 @@ public class Params {
         for (Map.Entry<String, String> entry : properties.entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue();
-            binder.bind(Key.get(String.class, new PathParamImpl(key))).toInstance(value);
+            binder.bind(Key.get(String.class, new RequestParams.ParamImpl(key))).toInstance(value);
         }
     }
 
@@ -97,9 +101,8 @@ public class Params {
         for (Enumeration<?> e = properties.propertyNames(); e.hasMoreElements(); ) {
             String propertyName = (String) e.nextElement();
             String value = properties.getProperty(propertyName);
-            binder.bind(Key.get(String.class, new PathParamImpl(propertyName))).toInstance(value);
+            binder.bind(Key.get(String.class, new RequestParams.ParamImpl(propertyName))).toInstance(value);
         }
     }
+
 }
-
-

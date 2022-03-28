@@ -1,4 +1,4 @@
-package org.nestful.service.controller;
+package xyz.lzw.nestful.service;
 
 /**
  * @author Lzw

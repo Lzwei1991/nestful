@@ -1,15 +1,15 @@
-package org.nestful.annotations;
+package xyz.lzw.nestful.annotations;
 
 import java.lang.annotation.*;
 
 /**
  * @author Lzw
- * @date 2019/4/30
- * @since JDK 1.8
+ * @date 2022-03-24
+ * @since JDK 11
  */
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface PUT {
+public @interface POST {
     String value() default "";
 }

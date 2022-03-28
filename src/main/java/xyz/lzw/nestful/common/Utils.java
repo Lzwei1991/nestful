@@ -1,4 +1,4 @@
-package org.nestful.common;
+package xyz.lzw.nestful.common;
 
 import java.util.Set;
 import java.util.TreeSet;
@@ -7,8 +7,8 @@ import java.util.regex.Pattern;
 
 /**
  * @author Lzw
- * @date 2019/5/7
- * @since JDK 1.8
+ * @date 2022-03-24
+ * @since JDK 11
  */
 public class Utils {
     /**

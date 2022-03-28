@@ -1,8 +1,7 @@
-package org.nestful.model.ref;
+package xyz.lzw.nestful.ref.model;
 
-import org.nestful.annotations.*;
 import org.reflections.Reflections;
-import org.nestful.annotations.*;
+import xyz.lzw.nestful.annotations.*;
 
 import java.lang.reflect.Method;
 import java.util.Optional;
@@ -10,8 +9,8 @@ import java.util.Set;
 
 /**
  * @author Lzw
- * @date 2019/4/30
- * @since JDK 1.8
+ * @date 2022-03-24
+ * @since JDK 11
  */
 public class Reflection {
 
@@ -23,17 +22,17 @@ public class Reflection {
      */
     public static Set<Class<?>> scannerServiceChild(String packagePath) {
         Reflections reflections = new Reflections(packagePath);
-        return reflections.getTypesAnnotatedWith(Path.class);
+        return reflections.getTypesAnnotatedWith(Restful.class);
     }
 
     /**
      * loading requests routing path
      *
-     * @param classes classes for annotation with {@link Path}
+     * @param classes classes for annotation with {@link Restful}
      */
     public static void addRoutePath(Set<Class<?>> classes) {
         for (Class<?> clazz : classes) {
-            Path path = clazz.getAnnotation(Path.class);
+            Restful path = clazz.getAnnotation(Restful.class);
             String uri = path.value();
             Method[] methods = clazz.getMethods();
             for (Method m : methods) {
