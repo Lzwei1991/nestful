@@ -40,18 +40,29 @@ public class RestfulMethods {
      * @return matcher case
      */
     public static Map.Entry<Pattern, Set<Method>> requests(String url) {
+        Map.Entry<Pattern, Set<Method>> paramMatch = null;
+
         for (Map.Entry<Pattern, Set<Method>> entry : restful_mapping.entrySet()) {
-            Matcher m = entry.getKey().matcher(url);
-            if (m.matches()) {
+            Pattern pattern = entry.getKey();
+            Matcher m = pattern.matcher(url);
+            if (!m.matches()) {
+                continue;
+            }
+
+            String patternStr = pattern.pattern();
+            // 不包含 "(?<" 的认为是“无路径参数”的精确路由，优先返回
+            if (!patternStr.contains("(?<")) {
                 return entry;
             }
-        }
-        return restful_mapping.entrySet().stream().filter(entry -> {
-            Pattern key = entry.getKey();
-            return key.matcher(url).matches();
-        }).sorted().findFirst().orElse(null);
-    }
 
+            // 记录第一个带路径参数的匹配，作为兜底
+            if (paramMatch == null) {
+                paramMatch = entry;
+            }
+        }
+
+        return paramMatch;
+    }
 
     /**
      * transform string url to regular expression

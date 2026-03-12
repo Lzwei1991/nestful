@@ -5,7 +5,7 @@ import com.google.inject.Key;
 import com.google.inject.internal.Annotations;
 import com.google.inject.name.Named;
 import com.google.inject.name.Names;
-import xyz.lzw.nestful.annotations.Param;
+import xyz.lzw.nestful.annotations.Query;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
@@ -25,7 +25,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public class RequestParams {
 
 
-    public static class ParamImpl implements Param, Serializable {
+    public static class ParamImpl implements Query, Serializable {
 
         private static final long serialVersionUID = -3192454276606618806L;
         private final String value;
@@ -47,22 +47,22 @@ public class RequestParams {
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof Param)) {
+            if (!(o instanceof Query)) {
                 return false;
             }
 
-            Param other = (Param) o;
+            Query other = (Query) o;
             return value.equals(other.value());
         }
 
         @Override
         public String toString() {
-            return "@" + Param.class.getName() + "(value=" + Annotations.memberValueString(value) + ")";
+            return "@" + Query.class.getName() + "(value=" + Annotations.memberValueString(value) + ")";
         }
 
         @Override
         public Class<? extends Annotation> annotationType() {
-            return Param.class;
+            return Query.class;
         }
 
     }
@@ -74,7 +74,7 @@ public class RequestParams {
     /**
      * Creates a {@link Named} annotation with {@code name} as the value.
      */
-    public static Param param(String name) {
+    public static Query param(String name) {
         return new RequestParams.ParamImpl(name);
     }
 

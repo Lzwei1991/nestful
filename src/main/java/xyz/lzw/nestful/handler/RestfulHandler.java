@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory;
 import xyz.lzw.nestful.annotations.*;
 import xyz.lzw.nestful.ref.model.Reflection;
 import xyz.lzw.nestful.ref.model.RestfulMethods;
-import xyz.lzw.nestful.ref.params.PathParams;
 import xyz.lzw.nestful.service.Service;
 import xyz.lzw.nestful.ref.model.ParamMeta;
 import xyz.lzw.nestful.ref.model.ParamMeta.ParamSource;
@@ -26,11 +25,11 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.*;
@@ -47,15 +46,12 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 public class RestfulHandler extends ChannelInboundHandlerAdapter {
     private static final Logger log = LoggerFactory.getLogger(RestfulHandler.class);
 
-    private static final Gson GSON = new GsonBuilder()
-            .serializeNulls()
-            .create();
+    private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
     /**
      * 缓存 Service 子类的构造函数，避免每次请求都通过反射查找。
      */
-    private static final ConcurrentHashMap<Class<? extends Service>, Constructor<? extends Service>>
-            SERVICE_CTORS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Class<? extends Service>, Constructor<? extends Service>> SERVICE_CTORS = new ConcurrentHashMap<>();
 
     /**
      * 缓存每个 Controller 方法的参数元数据，避免重复反射和注解解析。
@@ -119,6 +115,8 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                 }
 
                 if (o == null) {
+                    System.out.printf("Method not allowed for uri={%s}, httpMethod={%s}, matchedPattern={%s}%n",
+                            req.uri(), httpMethod, pattern);
                     // options request support access-control-allow-origin
                     if (HttpMethod.OPTIONS.equals(httpMethod)) {
                         FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, OK, Unpooled.wrappedBuffer(new byte[]{}));
@@ -167,9 +165,7 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
      * @param status http status
      */
     private void status(ChannelHandlerContext ctx, HttpResponseStatus status) {
-        FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1,
-                status, Unpooled.copiedBuffer("Failure: " + status.toString()
-                + "\r\n", CharsetUtil.UTF_8));
+        FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, status, Unpooled.copiedBuffer("Failure: " + status.toString() + "\r\n", CharsetUtil.UTF_8));
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
@@ -227,20 +223,15 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
      * 为指定的 Service 子类创建实例。
      * 要求 Service 子类有形如 (ChannelHandlerContext, FullHttpRequest) 的构造函数。
      */
-    private Service createServiceInstance(Class<? extends Service> serviceClass,
-                                          ChannelHandlerContext ctx,
-                                          FullHttpRequest req) throws Exception {
+    private Service createServiceInstance(Class<? extends Service> serviceClass, ChannelHandlerContext ctx, FullHttpRequest req) throws Exception {
         try {
             Constructor<? extends Service> ctor = SERVICE_CTORS.computeIfAbsent(serviceClass, clazz -> {
                 try {
-                    Constructor<? extends Service> c =
-                            clazz.getConstructor(ChannelHandlerContext.class, FullHttpRequest.class);
+                    Constructor<? extends Service> c = clazz.getConstructor(ChannelHandlerContext.class, FullHttpRequest.class);
                     c.setAccessible(true);
                     return c;
                 } catch (NoSuchMethodException e) {
-                    throw new IllegalStateException(
-                            "Service class " + clazz.getName()
-                                    + " must provide a constructor (ChannelHandlerContext, FullHttpRequest)", e);
+                    throw new IllegalStateException("Service class " + clazz.getName() + " must provide a constructor (ChannelHandlerContext, FullHttpRequest)", e);
                 }
             });
             return ctor.newInstance(ctx, req);
@@ -257,12 +248,9 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
      * - ChannelHandlerContext / FullHttpRequest：直接注入
      * - 其他参数：根据 body 用 JSON 反序列化到对应类型（已在 2/3 节中做好 Content-Type 判断）
      */
-    private Object[] buildMethodArguments(Method method,
-                                          Matcher matcher,
-                                          FullHttpRequest req,
-                                          ChannelHandlerContext ctx) {
-        Parameter[] parameters = method.getParameters();
-        if (parameters.length == 0) {
+    private Object[] buildMethodArguments(Method method, Matcher matcher, FullHttpRequest req, ChannelHandlerContext ctx) {
+        ParamMeta[] metas = getOrCreateParamMetas(method);
+        if (metas.length == 0) {
             return new Object[0];
         }
 
@@ -271,49 +259,48 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
         String contentType = req.headers().get(CONTENT_TYPE);
         String lowerContentType = contentType == null ? "" : contentType.toLowerCase();
 
-        Object[] args = new Object[parameters.length];
+        // 只解析一次 query
+        QueryStringDecoder queryDecoder = new QueryStringDecoder(req.uri());
+        Map<String, List<String>> queryParams = queryDecoder.parameters();
 
-        for (int i = 0; i < parameters.length; i++) {
-            Parameter parameter = parameters[i];
+        Object[] args = new Object[metas.length];
 
-            // 1. 路径参数
-            Path pathAnn = parameter.getAnnotation(Path.class);
-            if (pathAnn != null) {
-                String groupName = pathAnn.value();
-                args[i] = matcher.group(groupName);
-                continue;
-            }
+        for (int i = 0; i < metas.length; i++) {
+            ParamMeta meta = metas[i];
 
-            Class<?> type = parameter.getType();
-
-            // 2. 特殊类型直接注入
-            if (ChannelHandlerContext.class.isAssignableFrom(type)) {
-                args[i] = ctx;
-                continue;
-            }
-            if (FullHttpRequest.class.isAssignableFrom(type)) {
-                args[i] = req;
-                continue;
-            }
-
-            // 3. 业务对象：从 body 反序列化
-            if (!StringUtil.isNullOrEmpty(body)) {
-                if (lowerContentType.contains("application/json")) {
-                    // application/json
-                    args[i] = GSON.fromJson(body, type);
-                } else if (lowerContentType.contains("application/x-www-form-urlencoded")) {
-                    // application/x-www-form-urlencoded
-                    String decoded = URLDecoder.decode(body, StandardCharsets.UTF_8);
-                    args[i] = GSON.fromJson(decoded, type);
-                } else if (!lowerContentType.isEmpty()) {
-                    throw new RuntimeException("not support Content-Type：" + contentType);
-                } else {
-                    // 没有 Content-Type，则按默认无参构造处理
-                    args[i] = newInstanceOrNull(type);
-                }
-            } else {
-                // 空 body，尝试调用无参构造
-                args[i] = newInstanceOrNull(type);
+            switch (meta.getSource()) {
+                case PATH:
+                    args[i] = matcher.group(meta.getName());
+                    break;
+                case CTX:
+                    args[i] = ctx;
+                    break;
+                case REQ:
+                    args[i] = req;
+                    break;
+                case QUERY:
+                    args[i] = getQueryParamValue(queryParams, meta.getName(), meta.getType());
+                    break;
+                case BODY_OR_DEFAULT:
+                    Class<?> type = meta.getType();
+                    if (!StringUtil.isNullOrEmpty(body)) {
+                        if (lowerContentType.contains("application/json")) {
+                            args[i] = GSON.fromJson(body, type);
+                        } else if (lowerContentType.contains("application/x-www-form-urlencoded")) {
+                            String decoded = URLDecoder.decode(body, StandardCharsets.UTF_8);
+                            args[i] = GSON.fromJson(decoded, type);
+                        } else if (!lowerContentType.isEmpty()) {
+                            throw new RuntimeException("not support Content-Type：" + contentType);
+                        } else {
+                            args[i] = newInstanceOrNull(type);
+                        }
+                    } else {
+                        args[i] = newInstanceOrNull(type);
+                    }
+                    break;
+                default:
+                    args[i] = null;
+                    break;
             }
         }
 
@@ -332,7 +319,16 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
                 Path pathAnn = p.getAnnotation(Path.class);
                 if (pathAnn != null) {
                     metas[i] = new ParamMeta(ParamSource.PATH, String.class, pathAnn.value());
-                } else if (ChannelHandlerContext.class.isAssignableFrom(type)) {
+                    continue;
+                }
+
+                Query queryAnn = p.getAnnotation(Query.class);
+                if (queryAnn != null) {
+                    metas[i] = new ParamMeta(ParamSource.QUERY, type, queryAnn.value());
+                    continue;
+                }
+
+                if (ChannelHandlerContext.class.isAssignableFrom(type)) {
                     metas[i] = new ParamMeta(ParamSource.CTX, type, null);
                 } else if (FullHttpRequest.class.isAssignableFrom(type)) {
                     metas[i] = new ParamMeta(ParamSource.REQ, type, null);
@@ -351,5 +347,67 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
             log.error("Failed to create instance for type: {}", type, e);
             return null;
         }
+    }
+
+    private Object getQueryParamValue(Map<String, List<String>> queryParams, String name, Class<?> targetType) {
+        List<String> values = queryParams.get(name);
+        if (values == null || values.isEmpty()) {
+            // 没有传这个参数
+            return defaultValueForType(targetType);
+        }
+        String raw = values.get(0);
+
+        // String 直接返回
+        if (String.class.equals(targetType)) {
+            return raw;
+        }
+
+        try {
+            if (targetType.equals(int.class) || targetType.equals(Integer.class)) {
+                return Integer.parseInt(raw);
+            } else if (targetType.equals(long.class) || targetType.equals(Long.class)) {
+                return Long.parseLong(raw);
+            } else if (targetType.equals(boolean.class) || targetType.equals(Boolean.class)) {
+                return Boolean.parseBoolean(raw);
+            } else if (targetType.equals(double.class) || targetType.equals(Double.class)) {
+                return Double.parseDouble(raw);
+            } else if (targetType.equals(float.class) || targetType.equals(Float.class)) {
+                return Float.parseFloat(raw);
+            } else if (targetType.equals(short.class) || targetType.equals(Short.class)) {
+                return Short.parseShort(raw);
+            } else if (targetType.equals(byte.class) || targetType.equals(Byte.class)) {
+                return Byte.parseByte(raw);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to convert query param '{}'='{}' to type {}", name, raw, targetType, e);
+            // 解析失败，返回该类型的默认值（避免对基本类型传 null）
+            return defaultValueForType(targetType);
+        }
+
+        // 其他类型暂不支持自动转换
+        return null;
+    }
+
+    /**
+     * 为基本类型提供默认值，包装类型则返回 null。
+     */
+    private Object defaultValueForType(Class<?> targetType) {
+        if (targetType.equals(int.class)) {
+            return 0;
+        } else if (targetType.equals(long.class)) {
+            return 0L;
+        } else if (targetType.equals(boolean.class)) {
+            return false;
+        } else if (targetType.equals(double.class)) {
+            return 0d;
+        } else if (targetType.equals(float.class)) {
+            return 0f;
+        } else if (targetType.equals(short.class)) {
+            return (short) 0;
+        } else if (targetType.equals(byte.class)) {
+            return (byte) 0;
+        }
+        // 包装类型或其他非基本类型
+        return null;
     }
 }

@@ -24,8 +24,9 @@ public class TestController extends Service<TestEntity> {
         super(ctx, req);
     }
 
+    // 对应: GET /api/test/get
     @GET("/get")
-    public Object get() {
+    public Object get(@Query("name") String name, @Query("age") int age) {
         return new TestEntity("lzw", 20);
     }
 
@@ -35,11 +36,13 @@ public class TestController extends Service<TestEntity> {
         return Map.of("success", true, "message", "ok", "data", entity);
     }
 
+    // 对应: DELETE /api/test/{id}
     @DELETE("/{id}")
     public Object delete(@Path("id") String id) {
         return Map.of("success", true, "message", "ok");
     }
 
+    // 对应: PUT /api/test/{id}
     @PUT("/{id}")
     public Object put(@Path("id") String id, TestEntity entity) {
         return Map.of("success", true, "message", "ok");
