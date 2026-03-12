@@ -7,6 +7,8 @@ import xyz.lzw.nestful.annotations.*;
 import xyz.lzw.nestful.service.Service;
 import xyz.lzw.nestful.service.TestEntity;
 
+import java.util.Map;
+
 /**
  * TODO
  *
@@ -22,29 +24,25 @@ public class TestController extends Service<TestEntity> {
         super(ctx, req);
     }
 
-    @GET
+    @GET("/get")
     public Object get() {
-        System.out.println("get");
-        return "hello restful.";
+        return new TestEntity("lzw", 20);
     }
 
     @POST
     public Object post(TestEntity entity) {
-        System.out.println("post");
-        return "hello " + entity.name;
+
+        return Map.of("success", true, "message", "ok", "data", entity);
     }
 
     @DELETE("/{id}")
     public Object delete(@Path("id") String id) {
-        System.out.println("delete");
-        return "ok";
+        return Map.of("success", true, "message", "ok");
     }
 
     @PUT("/{id}")
     public Object put(@Path("id") String id, TestEntity entity) {
-        System.out.println(entity.name);
-        System.out.println(entity.age);
-        return "ok";
+        return Map.of("success", true, "message", "ok");
     }
 
     @Override

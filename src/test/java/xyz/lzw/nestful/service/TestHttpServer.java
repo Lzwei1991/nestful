@@ -45,7 +45,7 @@ public class TestHttpServer {
                     ch.pipeline().addLast(new HttpObjectAggregator(1024 * 1024 * 8));//8k
                     ch.pipeline().addLast(new HttpResponseEncoder());
                     ch.pipeline().addLast(new HttpContentCompressor());
-                    ch.pipeline().addLast(new RestfulHandler("org.nestful.service.controller"));
+                    ch.pipeline().addLast(new RestfulHandler("xyz.lzw.nestful.service.controller"));
                 }
             });
             int port = 8001;

@@ -1,8 +1,7 @@
 package xyz.lzw.nestful.handler;
 
-import com.alibaba.fastjson.JSON;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
@@ -15,12 +14,14 @@ import io.netty.util.internal.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import xyz.lzw.nestful.annotations.*;
-import xyz.lzw.nestful.common.Utils;
 import xyz.lzw.nestful.ref.model.Reflection;
 import xyz.lzw.nestful.ref.model.RestfulMethods;
 import xyz.lzw.nestful.ref.params.PathParams;
 import xyz.lzw.nestful.service.Service;
+import xyz.lzw.nestful.ref.model.ParamMeta;
+import xyz.lzw.nestful.ref.model.ParamMeta.ParamSource;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.net.URLDecoder;
@@ -30,6 +31,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.*;
 import static io.netty.handler.codec.http.HttpHeaderValues.*;
@@ -45,9 +47,23 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 public class RestfulHandler extends ChannelInboundHandlerAdapter {
     private static final Logger log = LoggerFactory.getLogger(RestfulHandler.class);
 
+    private static final Gson GSON = new GsonBuilder()
+            .serializeNulls()
+            .create();
+
+    /**
+     * 缓存 Service 子类的构造函数，避免每次请求都通过反射查找。
+     */
+    private static final ConcurrentHashMap<Class<? extends Service>, Constructor<? extends Service>>
+            SERVICE_CTORS = new ConcurrentHashMap<>();
+
+    /**
+     * 缓存每个 Controller 方法的参数元数据，避免重复反射和注解解析。
+     */
+    private static final ConcurrentHashMap<Method, ParamMeta[]> METHOD_PARAM_METAS = new ConcurrentHashMap<>();
+
     public RestfulHandler(String packagePath) {
         Reflection.addRoutePath(Reflection.scannerServiceChild(packagePath));
-
     }
 
 
@@ -123,64 +139,14 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
 
                 Method method = o;
 
-                // decode params
-                Injector injector = Guice.createInjector(binder -> {
-                    for (String key : Utils.getNamedGroupCandidates(pattern.pattern())) {
-                        binder.bind(String.class).annotatedWith(PathParams.param(key)).toInstance(matcher.group(key));
-                    }
-                    // default instance to netty (ChannelHandlerContext)ctx
-                    binder.bind(ChannelHandlerContext.class).toInstance(ctx);
-                    // default instance to netty (FullHttpRequest)msg
-                    binder.bind(FullHttpRequest.class).toInstance(req);
-                    binder.bind(Service.class).to((Class<? extends Service>) method.getDeclaringClass());
+                // 创建 Service 实例（Controller）
+                Class<? extends Service> serviceClass = (Class<? extends Service>) method.getDeclaringClass();
+                Service service = createServiceInstance(serviceClass, ctx, req);
 
-                    for (Parameter parameter : method.getParameters()) {
-                        if (parameter.getAnnotation(Path.class) != null) {
-                            // Path pathParam = parameter.getAnnotation(Path.class);
-                            // binder.bind(parameter.getType())
-                            //         .annotatedWith(PathParams.param(pathParam.value()))
-                            //         .toInstance(matcher.group(pathParam.value()));
-                            continue;
-                        }
+                // 构造方法参数
+                Object[] args = buildMethodArguments(method, matcher, req, ctx);
 
-                        Class type = parameter.getType();
-                        String body = req.content().toString(StandardCharsets.UTF_8);
-                        if (!StringUtil.isNullOrEmpty(body)) {
-                            if (req.headers().get(CONTENT_TYPE).toLowerCase().contains("application/json")) {
-                                // application/json
-                                binder.bind(type).toInstance(JSON.toJavaObject(JSON.parseObject(body), type));
-                            } else if (req.headers().get(CONTENT_TYPE).toLowerCase().contains("application/x-www-form-urlencoded")) {
-                                // application/x-www-form-urlencoded
-                                binder.bind(type).toInstance(JSON.toJavaObject(JSON.parseObject(URLDecoder.decode(body, StandardCharsets.UTF_8)), type));
-                            } else {
-                                throw new RuntimeException("not supper Content-Type：" + req.headers().get(CONTENT_TYPE));
-                            }
-                        } else {
-                            try {
-                                binder.bind(type).toInstance(type.newInstance());
-                            } catch (Exception e) {
-                                log.error("", e);
-                            }
-                        }
-                    }
-
-                    // binder.bindInterceptor(any(), any(), invocation -> {
-                    //     if (invocation.getMethod().equals(method))
-                    //         return invocation.proceed();
-                    //     return null;
-                    // });
-                });
-                Service service = injector.getInstance(Service.class);
-                Object[] objects = Stream.of(method.getParameters())
-                        .map(parameter -> {
-                            if (parameter.getAnnotation(Path.class) != null) {
-                                return injector.getBinding(String.class);
-                            }
-                            return injector.getInstance(parameter.getType());
-                        })
-                        .toArray();
-                // method.invoke(service, objects);
-                Object result = method.invoke(service, objects);
+                Object result = method.invoke(service, args);
                 FullHttpResponse response = this.createResponse(req, result);
                 ctx.writeAndFlush(response);
             } else {
@@ -217,33 +183,173 @@ public class RestfulHandler extends ChannelInboundHandlerAdapter {
     public FullHttpResponse createResponse(HttpRequest req, Object result) {
         FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, OK);
 
+        // 默认 text/plain
         response.headers().set(CONTENT_TYPE, TEXT_PLAIN + ";charset=UTF-8");
         String accept = req.headers().get(ACCEPT);
-        if (!StringUtil.isNullOrEmpty(accept)) {
-            if (accept.contains("json")) {
-                response.headers().set(CONTENT_TYPE, APPLICATION_JSON + ";charset=UTF-8");
-            } else if (accept.contains("xml")) {
-                response.headers().set(CONTENT_TYPE, "application/xml;charset=UTF-8");
-            }
-        }
+        String lowerAccept = accept == null ? "" : accept.toLowerCase();
+        boolean prefersJson = lowerAccept.contains("json") || lowerAccept.contains("*/*");
 
-        if (result instanceof String || result instanceof Map) {
-            // body content
-            response.content().clear().writeBytes(Unpooled.copiedBuffer(result.toString(), HttpConstants.DEFAULT_CHARSET));
+        if (result == null) {
+            response.content().clear().writeBytes(Unpooled.copiedBuffer("", HttpConstants.DEFAULT_CHARSET));
+        } else if (result instanceof String) {
+            // 明确返回 String，则按字符串处理
+            response.content().clear().writeBytes(Unpooled.copiedBuffer((String) result, HttpConstants.DEFAULT_CHARSET));
+        } else if (result instanceof Map) {
+            // Map 默认 JSON
+            String json = GSON.toJson(result);
+            response.content().clear().writeBytes(Unpooled.copiedBuffer(json, HttpConstants.DEFAULT_CHARSET));
+            response.headers().set(CONTENT_TYPE, APPLICATION_JSON + ";charset=UTF-8");
         } else if (result instanceof ByteBuf || result instanceof byte[]) {
             byte[] buf = result instanceof ByteBuf ? ((ByteBuf) result).array() : (byte[]) result;
-            // body content
             response.content().clear().writeBytes(buf);
             response.headers().set(CONTENT_TYPE, APPLICATION_OCTET_STREAM);
         } else {
-            response.content().clear().writeBytes(Unpooled.copiedBuffer(result.toString(), HttpConstants.DEFAULT_CHARSET));
-            return response;
+            // 其他对象：默认也按 JSON 返回
+            if (prefersJson || StringUtil.isNullOrEmpty(lowerAccept)) {
+                String json = GSON.toJson(result);
+                response.content().clear().writeBytes(Unpooled.copiedBuffer(json, HttpConstants.DEFAULT_CHARSET));
+                response.headers().set(CONTENT_TYPE, APPLICATION_JSON + ";charset=UTF-8");
+            } else {
+                // 客户端显式只接受非 JSON，再退回 toString
+                response.content().clear().writeBytes(Unpooled.copiedBuffer(result.toString(), HttpConstants.DEFAULT_CHARSET));
+            }
         }
+
         response.headers().setInt(CONTENT_LENGTH, response.content().readableBytes());
         response.headers().set(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
         response.headers().set(ACCESS_CONTROL_ALLOW_METHODS, "GET,PUT,POST,DELETE,OPTIONS,HEAD,PATCH,TRACE");
         response.headers().set(ACCESS_CONTROL_ALLOW_HEADERS, "Accept,Origin,X-Requested-With,Content-Type,Last-Modified,device,token");
 
         return response;
+    }
+
+    /**
+     * 为指定的 Service 子类创建实例。
+     * 要求 Service 子类有形如 (ChannelHandlerContext, FullHttpRequest) 的构造函数。
+     */
+    private Service createServiceInstance(Class<? extends Service> serviceClass,
+                                          ChannelHandlerContext ctx,
+                                          FullHttpRequest req) throws Exception {
+        try {
+            Constructor<? extends Service> ctor = SERVICE_CTORS.computeIfAbsent(serviceClass, clazz -> {
+                try {
+                    Constructor<? extends Service> c =
+                            clazz.getConstructor(ChannelHandlerContext.class, FullHttpRequest.class);
+                    c.setAccessible(true);
+                    return c;
+                } catch (NoSuchMethodException e) {
+                    throw new IllegalStateException(
+                            "Service class " + clazz.getName()
+                                    + " must provide a constructor (ChannelHandlerContext, FullHttpRequest)", e);
+                }
+            });
+            return ctor.newInstance(ctx, req);
+        } catch (IllegalStateException e) {
+            // 构造函数找不到等配置错误
+            log.error(e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * 构造 Controller 方法参数数组：
+     * - @Path 参数：从 matcher 的命名分组中取
+     * - ChannelHandlerContext / FullHttpRequest：直接注入
+     * - 其他参数：根据 body 用 JSON 反序列化到对应类型（已在 2/3 节中做好 Content-Type 判断）
+     */
+    private Object[] buildMethodArguments(Method method,
+                                          Matcher matcher,
+                                          FullHttpRequest req,
+                                          ChannelHandlerContext ctx) {
+        Parameter[] parameters = method.getParameters();
+        if (parameters.length == 0) {
+            return new Object[0];
+        }
+
+        // 只解析一次 body，避免重复转换
+        String body = req.content().toString(StandardCharsets.UTF_8);
+        String contentType = req.headers().get(CONTENT_TYPE);
+        String lowerContentType = contentType == null ? "" : contentType.toLowerCase();
+
+        Object[] args = new Object[parameters.length];
+
+        for (int i = 0; i < parameters.length; i++) {
+            Parameter parameter = parameters[i];
+
+            // 1. 路径参数
+            Path pathAnn = parameter.getAnnotation(Path.class);
+            if (pathAnn != null) {
+                String groupName = pathAnn.value();
+                args[i] = matcher.group(groupName);
+                continue;
+            }
+
+            Class<?> type = parameter.getType();
+
+            // 2. 特殊类型直接注入
+            if (ChannelHandlerContext.class.isAssignableFrom(type)) {
+                args[i] = ctx;
+                continue;
+            }
+            if (FullHttpRequest.class.isAssignableFrom(type)) {
+                args[i] = req;
+                continue;
+            }
+
+            // 3. 业务对象：从 body 反序列化
+            if (!StringUtil.isNullOrEmpty(body)) {
+                if (lowerContentType.contains("application/json")) {
+                    // application/json
+                    args[i] = GSON.fromJson(body, type);
+                } else if (lowerContentType.contains("application/x-www-form-urlencoded")) {
+                    // application/x-www-form-urlencoded
+                    String decoded = URLDecoder.decode(body, StandardCharsets.UTF_8);
+                    args[i] = GSON.fromJson(decoded, type);
+                } else if (!lowerContentType.isEmpty()) {
+                    throw new RuntimeException("not support Content-Type：" + contentType);
+                } else {
+                    // 没有 Content-Type，则按默认无参构造处理
+                    args[i] = newInstanceOrNull(type);
+                }
+            } else {
+                // 空 body，尝试调用无参构造
+                args[i] = newInstanceOrNull(type);
+            }
+        }
+
+        return args;
+    }
+
+    private ParamMeta[] getOrCreateParamMetas(Method method) {
+        return METHOD_PARAM_METAS.computeIfAbsent(method, m -> {
+            Parameter[] parameters = m.getParameters();
+            ParamMeta[] metas = new ParamMeta[parameters.length];
+
+            for (int i = 0; i < parameters.length; i++) {
+                Parameter p = parameters[i];
+                Class<?> type = p.getType();
+
+                Path pathAnn = p.getAnnotation(Path.class);
+                if (pathAnn != null) {
+                    metas[i] = new ParamMeta(ParamSource.PATH, String.class, pathAnn.value());
+                } else if (ChannelHandlerContext.class.isAssignableFrom(type)) {
+                    metas[i] = new ParamMeta(ParamSource.CTX, type, null);
+                } else if (FullHttpRequest.class.isAssignableFrom(type)) {
+                    metas[i] = new ParamMeta(ParamSource.REQ, type, null);
+                } else {
+                    metas[i] = new ParamMeta(ParamSource.BODY_OR_DEFAULT, type, null);
+                }
+            }
+            return metas;
+        });
+    }
+
+    private Object newInstanceOrNull(Class<?> type) {
+        try {
+            return type.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            log.error("Failed to create instance for type: {}", type, e);
+            return null;
+        }
     }
 }
